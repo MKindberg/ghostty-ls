@@ -28,6 +28,7 @@ pub fn main() !u8 {
     server.registerHoverCallback(handleHover);
     server.registerFormattingCallback(handleFormat);
     server.registerRangeFormattingCallback(handleRangeFormat);
+    server.registerCompletionCallback(handleCompletion);
 
     return server.start();
 }
@@ -113,7 +114,6 @@ fn singleCharRange(line: usize, char: usize) lsp.types.Range {
         .end = .{ .line = line, .character = char },
     };
 }
-
 fn formatText(arena: std.mem.Allocator, text: []const u8) []lsp.types.TextEdit {
     var edits = std.ArrayList(lsp.types.TextEdit).init(arena);
     var lines = std.mem.split(u8, text, "\n");
@@ -153,4 +153,28 @@ fn formatText(arena: std.mem.Allocator, text: []const u8) []lsp.types.TextEdit {
         }
     }
     return edits.items;
+}
+
+fn handleCompletion(arena: std.mem.Allocator, context: *Lsp.Context, position: lsp.types.Position) ?lsp.types.CompletionList {
+    const line = context.document.getLine(position).?;
+    if (std.mem.startsWith(u8, line, "#")) return null;
+
+    if (std.mem.indexOf(u8, line[0..position.character], " ") == null and
+        std.mem.indexOf(u8, line[0..position.character], "=") == null)
+    {
+        const CompletionItem = lsp.types.CompletionItem;
+        var completions = std.ArrayList(CompletionItem).init(arena);
+
+        var items = options.iterator();
+        while (items.next()) |item| {
+            completions.append(.{
+                .label = item.key_ptr.*,
+                .kind = .Keyword,
+                .documentation = item.value_ptr.comment,
+            }) catch unreachable;
+        }
+        return .{ .items = completions.items };
+    }
+
+    return null;
 }
