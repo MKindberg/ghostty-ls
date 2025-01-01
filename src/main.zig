@@ -1,12 +1,13 @@
 const std = @import("std");
 const lsp = @import("lsp");
 const builtin = @import("builtin");
+const completion = @import("completion.zig");
 
 pub const std_options = .{ .log_level = if (builtin.mode == .Debug) .debug else .info, .logFn = lsp.log };
 
 const Lsp = lsp.Lsp(void);
 
-const Option = struct {
+pub const Option = struct {
     name: []const u8,
     comment: []const u8,
     default: []const u8,
@@ -162,18 +163,18 @@ fn handleCompletion(arena: std.mem.Allocator, context: *Lsp.Context, position: l
     if (std.mem.indexOf(u8, line[0..position.character], " ") == null and
         std.mem.indexOf(u8, line[0..position.character], "=") == null)
     {
-        const CompletionItem = lsp.types.CompletionItem;
-        var completions = std.ArrayList(CompletionItem).init(arena);
-
-        var items = options.iterator();
-        while (items.next()) |item| {
-            completions.append(.{
-                .label = item.key_ptr.*,
-                .kind = .Keyword,
-                .documentation = item.value_ptr.comment,
-            }) catch unreachable;
+        const items = completion.keywords(arena, options) orelse return null;
+        return .{ .items = items };
+    }
+    if (std.mem.indexOf(u8, line[0..position.character], "=") != null) {
+        if (std.mem.startsWith(u8, line, "font-family")) {
+            const items = completion.fonts(arena) orelse return null;
+            return .{ .items = items };
         }
-        return .{ .items = completions.items };
+        if (std.mem.startsWith(u8, line, "theme")) {
+            const items = completion.themes(arena) orelse return null;
+            return .{ .items = items };
+        }
     }
 
     return null;
