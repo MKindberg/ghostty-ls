@@ -1,0 +1,41 @@
+name: "tagged-release"
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  tagged-release:
+    name: "Tagged Release"
+    runs-on: "ubuntu-20.04"
+
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v4
+      - uses: goto-bus-stop/setup-zig@v2
+        with:
+          version: 0.13.0
+      - name: Compile
+        shell: bash
+        run: |
+          zig build --release=safe
+          zig build gen_plugins
+          zip -jr registry.json.zip editors/nvim/registry.json
+          sha256sum editors/nvim/registry.json registry.json.zip > checksums.txt
+          cd editors/vscode
+          npm install
+          ./node_modules/.bin/vsce package
+      - name: Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ needs.tag.outputs.tag }}
+          fail_on_unmatched_files: true
+          generate_release_notes: false
+          files: |
+            registry.json.zip
+            checksums.txt
+            zig-out/bin/ghostty-ls
+            editors/vscode/ghostty-ls-0.0.1.vsix
+            editors/nvim/plugin.lua
+

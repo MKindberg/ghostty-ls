@@ -28,4 +28,13 @@ pub fn build(b: *std.Build) void {
 
     const run_step = b.step("run", "Run the app");
     run_step.dependOn(&run_cmd.step);
+
+    const plugin_generator = b.addExecutable(.{
+        .name = "generate_plugins",
+        .root_source_file = b.path("plugins.zig"),
+        .target = b.host,
+    });
+
+    plugin_generator.root_module.addImport("lsp_plugins", babel.module("plugins"));
+    b.step("gen_plugins", "Generate plugins").dependOn(&b.addRunArtifact(plugin_generator).step);
 }
