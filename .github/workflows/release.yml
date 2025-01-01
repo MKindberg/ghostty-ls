@@ -27,7 +27,7 @@ jobs:
           npm install
           ./node_modules/.bin/vsce package
       - name: Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ needs.tag.outputs.tag }}
           fail_on_unmatched_files: true
