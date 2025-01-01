@@ -175,6 +175,26 @@ fn handleCompletion(arena: std.mem.Allocator, context: *Lsp.Context, position: l
             const items = completion.themes(arena) orelse return null;
             return .{ .items = items };
         }
+        if (std.mem.startsWith(u8, line, "keybind") and
+            std.mem.containsAtLeast(u8, line[0..position.character], 2, "="))
+        {
+            const items = completion.actions(arena) orelse return null;
+            return .{ .items = items };
+        }
+        if (std.mem.startsWith(u8, line, "background") or
+            std.mem.startsWith(u8, line, "foreground") or
+            std.mem.startsWith(u8, line, "selection-foreground") or
+            std.mem.startsWith(u8, line, "selection-background") or
+            std.mem.startsWith(u8, line, "cursor-color") or
+            std.mem.startsWith(u8, line, "cursor-text") or
+            std.mem.startsWith(u8, line, "unfocused-split-fill") or
+            std.mem.startsWith(u8, line, "macos-icon-ghost-color") or
+            std.mem.startsWith(u8, line, "macos-icon-screen-color") or
+            (std.mem.startsWith(u8, line, "palette") and std.mem.containsAtLeast(u8, line[0..position.character], 2, "=")))
+        {
+            const items = completion.colors(arena) orelse return null;
+            return .{ .items = items };
+        }
     }
 
     return null;

@@ -59,3 +59,45 @@ pub fn themes(arena: std.mem.Allocator) ?[]CompletionItem {
 
     return completions.items;
 }
+
+pub fn actions(arena: std.mem.Allocator) ?[]CompletionItem {
+    var completions = std.ArrayList(CompletionItem).init(arena);
+
+    const res = std.process.Child.run(.{
+        .allocator = arena,
+        .argv = &[_][]const u8{ "ghostty", "+list-actions" },
+        .max_output_bytes = 5000,
+    }) catch return null;
+
+    var lines = std.mem.split(u8, res.stdout, "\n");
+    while (lines.next()) |line| {
+        completions.append(.{
+            .label = line,
+            .kind = .Value,
+        }) catch return null;
+    }
+
+    return completions.items;
+}
+
+pub fn colors(arena: std.mem.Allocator) ?[]CompletionItem {
+    var completions = std.ArrayList(CompletionItem).init(arena);
+
+    const res = std.process.Child.run(.{
+        .allocator = arena,
+        .argv = &[_][]const u8{ "ghostty", "+list-colors" },
+        .max_output_bytes = 50_000,
+    }) catch return null;
+
+    var lines = std.mem.split(u8, std.mem.trim(u8, res.stdout, " \n"), "\n");
+    while (lines.next()) |line| {
+        var l = std.mem.split(u8, line, " = ");
+        completions.append(.{
+            .label = l.next().?,
+            .detail = l.next().?,
+            .kind = .Value,
+        }) catch return null;
+    }
+
+    return completions.items;
+}
