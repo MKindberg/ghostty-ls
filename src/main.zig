@@ -26,6 +26,8 @@ pub fn main() !u8 {
     defer server.deinit();
 
     server.registerHoverCallback(handleHover);
+    server.registerFormattingCallback(handleFormat);
+    server.registerRangeFormattingCallback(handleRangeFormat);
 
     return server.start();
 }
@@ -73,4 +75,82 @@ fn handleHover(arena: std.mem.Allocator, context: *Lsp.Context, position: lsp.ty
     const opt = options.get(word) orelse return null;
 
     return std.fmt.allocPrint(arena, "# {s}\n\n{s}\n\nDefault: {s}", .{ opt.name, opt.comment, opt.default }) catch unreachable;
+}
+
+fn handleRangeFormat(arena: std.mem.Allocator, context: *Lsp.Context, range: lsp.types.Range, opts: lsp.types.FormattingOptions) ?[]const lsp.types.TextEdit {
+    _ = opts;
+    const doc = context.document;
+    const offset = lsp.Document.posToIdx(doc.text, range.start).?;
+    const t = context.document.getRange(range).?;
+    const edits = formatText(arena, t);
+    for (edits) |*e| {
+        const start = lsp.Document.posToIdx(t, e.range.start).?;
+        const end = lsp.Document.posToIdx(t, e.range.start).?;
+        e.range.start = lsp.Document.idxToPos(doc.text, offset + start).?;
+        e.range.end = lsp.Document.idxToPos(doc.text, offset + end).?;
+    }
+    return edits;
+}
+
+fn handleFormat(arena: std.mem.Allocator, context: *Lsp.Context, opts: lsp.types.FormattingOptions) ?[]const lsp.types.TextEdit {
+    _ = opts;
+
+    return formatText(arena, context.document.text);
+}
+
+fn insertMissingSpace(line: []const u8, line_num: usize, idx: usize) ?lsp.types.TextEdit {
+    if (line[idx] != ' ') {
+        return .{
+            .range = singleCharRange(line_num, idx),
+            .newText = " ",
+        };
+    }
+    return null;
+}
+fn singleCharRange(line: usize, char: usize) lsp.types.Range {
+    return .{
+        .start = .{ .line = line, .character = char },
+        .end = .{ .line = line, .character = char },
+    };
+}
+
+fn formatText(arena: std.mem.Allocator, text: []const u8) []lsp.types.TextEdit {
+    var edits = std.ArrayList(lsp.types.TextEdit).init(arena);
+    var lines = std.mem.split(u8, text, "\n");
+    var l: usize = 0;
+    while (lines.next()) |line| : (l += 1) {
+        if (std.mem.indexOf(u8, line, "#")) |idx| {
+            if (line[idx + 1] != ' ') {
+                edits.append(
+                    .{
+                        .range = singleCharRange(l, idx + 1),
+                        .newText = " ",
+                    },
+                ) catch unreachable;
+            }
+            continue;
+        }
+        if (std.mem.indexOf(u8, line, "=")) |idx| {
+            if (idx == 0) continue;
+            if (line[idx - 1] != ' ') {
+                edits.append(
+                    .{
+                        .range = singleCharRange(l, idx),
+                        .newText = " ",
+                    },
+                ) catch unreachable;
+            }
+
+            if (idx == line.len - 1) continue;
+            if (line[idx + 1] != ' ') {
+                edits.append(
+                    .{
+                        .range = singleCharRange(l, idx + 1),
+                        .newText = " ",
+                    },
+                ) catch unreachable;
+            }
+        }
+    }
+    return edits.items;
 }
