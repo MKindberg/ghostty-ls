@@ -23,6 +23,7 @@ jobs:
           zig build gen_plugins
           zip -jr registry.json.zip editors/nvim/registry.json
           sha256sum editors/nvim/registry.json registry.json.zip > checksums.txt
+          cp zig-out/bin/ghostty-ls editors/vscode
           cd editors/vscode
           npm install
           ./node_modules/.bin/vsce package

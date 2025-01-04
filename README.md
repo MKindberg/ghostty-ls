@@ -26,4 +26,5 @@ A language server providing the following features
     setup_ghostty_ls()
    ```
 ### Visual Studio Code
-The attached plugin is currently not working :-(
+1. Download the vsix file and install it with `code --install-extension ghostty-ls-0.0.1.vsix`
+2. Open the config file and change the language to ghostty in the bottom right corner.

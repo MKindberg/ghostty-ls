@@ -14,6 +14,6 @@ pub fn main() !void {
     };
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const allocator = gpa.allocator();
-    try editorgen.generate(allocator, info);
+    try editorgen.generateNvim(allocator, info);
     try editorgen.generateMasonRegistry(allocator, info);
 }
