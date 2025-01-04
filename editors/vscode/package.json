@@ -1,0 +1,31 @@
+{
+  "name": "ghostty-ls",
+  "displayName": "ghostty-ls",
+  "description": "Help with writing ghostty configuration",
+  "repository": "https://github.com/mkindberg/ghostty-ls",
+  "version": "0.0.1",
+  "publisher": "mkindberg",
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "activationEvents": [
+    "onLanguage:ghostty"
+  ],
+  "main": "./extension.js",
+  "dependencies": {
+    "@vscode/vsce": "2.15.0",
+    "generator-code": "^1.11.5",
+    "vscode-languageclient": "^9.0.1",
+    "yo": "^5.1.0"
+  },
+  "contributes": {
+    "languages": [{
+      "id": "ghostty",
+      "aliases": ["ghostty", "ghostty"],
+      "filenamePatterns": ["ghostty/config"]
+    }]
+  }
+}
