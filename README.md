@@ -10,7 +10,9 @@ A language server providing the following features
 ## Installation
 ### Neovim
 1. Download the binary from releases and put it in your PATH or use Mason by adding `"github:mkindberg/ghostty-ls"` as a registry in the config.
-2. Add the following code to your config
+2. Install the plugin and run its setup function, eg in Lazy.nvim:
+`{"mkindberg/ghostty-ls", config = true},`
+or set it up manually by adding the following code to your config
    ```lua
     local function setup_ghostty_ls()
         local client = vim.lsp.start_client { name = "ghostty-ls", cmd = { "ghostty-ls" }, }
