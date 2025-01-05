@@ -1,0 +1,30 @@
+[
+  {
+    "name": "ghostty-ls",
+    "description": "Help with writing ghostty configuration",
+    "homepage": "https://github.com/mkindberg/ghostty-ls",
+    "licenses": [ "MIT" ],
+    "languages": [],
+    "categories": [
+      "LSP"
+    ],
+    "source": {
+      "id": "pkg:github/mkindberg/ghostty-ls@v0.0.4",
+      "asset": [
+        {
+          "target": "linux_x64",
+          "file": "ghostty-ls_x86_64_linux.tar.gz",
+          "bin": "bin/ghostty-ls"
+        },
+        {
+          "target": "darwin_arm64",
+          "file": "ghostty-ls_aarch64_macos.tar.gz",
+          "bin": "bin/ghostty-ls"
+        }
+      ]
+    },
+    "bin": {
+      "ghostty-ls": "{{source.asset.bin}}"
+    }
+  }
+]

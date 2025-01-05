@@ -20,10 +20,15 @@ jobs:
         shell: bash
         run: |
           zig build --release=safe
+          cp zig-out/bin/ghostty-ls editors/vscode
+          cd zig-out
+          tar -czf ghostty-ls_x86_64_linux.tar.gz bin/ghostty-ls
+          zig build --release=safe -Dtarget=aarch64-macos
+          tar -czf ghostty-ls_aarch64_macos.tar.gz bin/ghostty-ls
+          cd ..
           zig build gen_plugins
           zip -jr registry.json.zip editors/nvim/registry.json
           sha256sum editors/nvim/registry.json registry.json.zip > checksums.txt
-          cp zig-out/bin/ghostty-ls editors/vscode
           cd editors/vscode
           npm install
           ./node_modules/.bin/vsce package
@@ -36,7 +41,8 @@ jobs:
           files: |
             registry.json.zip
             checksums.txt
-            zig-out/bin/ghostty-ls
+            zig-out/ghostty-ls_x86_64_linux.tar.gz
+            zig-out/ghostty-ls_aarch64_macos.tar.gz
             editors/vscode/ghostty-ls-0.0.1.vsix
             editors/nvim/plugin.lua
 
