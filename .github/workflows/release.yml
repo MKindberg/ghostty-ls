@@ -26,6 +26,7 @@ jobs:
           zig build --release=safe -Dtarget=aarch64-macos
           tar -czf ghostty-ls_aarch64_macos.tar.gz bin/ghostty-ls
           cd ..
+          sed -i "s/VERSION/$(git describe --tags)/" editors/nvim/registry.json
           zip -jr registry.json.zip editors/nvim/registry.json
           sha256sum editors/nvim/registry.json registry.json.zip > checksums.txt
           cd editors/vscode

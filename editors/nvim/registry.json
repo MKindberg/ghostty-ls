@@ -9,7 +9,7 @@
       "LSP"
     ],
     "source": {
-      "id": "pkg:github/mkindberg/ghostty-ls@v0.0.4",
+      "id": "pkg:github/mkindberg/ghostty-ls@VERSION",
       "asset": [
         {
           "target": "linux_x64",
