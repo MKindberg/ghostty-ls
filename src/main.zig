@@ -72,19 +72,18 @@ fn createOptionsMap(alloc: std.mem.Allocator) !std.StringHashMap(Option) {
     }
     return opt;
 }
-fn handleHover(arena: std.mem.Allocator, context: *Lsp.Context, position: lsp.types.Position) ?[]const u8 {
-    const word = context.document.getWord(position, "\n =") orelse return null;
+fn handleHover(p: Lsp.HoverParameters) ?[]const u8 {
+    const word = p.context.document.getWord(p.position, "\n =") orelse return null;
     const opt = options.get(word) orelse return null;
 
-    return std.fmt.allocPrint(arena, "# {s}\n\n{s}\n\nDefault: {s}", .{ opt.name, opt.comment, opt.default }) catch unreachable;
+    return std.fmt.allocPrint(p.arena, "# {s}\n\n{s}\n\nDefault: {s}", .{ opt.name, opt.comment, opt.default }) catch unreachable;
 }
 
-fn handleRangeFormat(arena: std.mem.Allocator, context: *Lsp.Context, range: lsp.types.Range, opts: lsp.types.FormattingOptions) ?[]const lsp.types.TextEdit {
-    _ = opts;
-    const doc = context.document;
-    const offset = lsp.Document.posToIdx(doc.text, range.start).?;
-    const t = context.document.getRange(range).?;
-    const edits = formatText(arena, t);
+fn handleRangeFormat(p: Lsp.RangeFormattingParameters) ?[]const lsp.types.TextEdit {
+    const doc = p.context.document;
+    const offset = lsp.Document.posToIdx(doc.text, p.range.start).?;
+    const t = p.context.document.getRange(p.range).?;
+    const edits = formatText(p.arena, t);
     for (edits) |*e| {
         const start = lsp.Document.posToIdx(t, e.range.start).?;
         const end = lsp.Document.posToIdx(t, e.range.start).?;
@@ -94,10 +93,8 @@ fn handleRangeFormat(arena: std.mem.Allocator, context: *Lsp.Context, range: lsp
     return edits;
 }
 
-fn handleFormat(arena: std.mem.Allocator, context: *Lsp.Context, opts: lsp.types.FormattingOptions) ?[]const lsp.types.TextEdit {
-    _ = opts;
-
-    return formatText(arena, context.document.text);
+fn handleFormat(p: Lsp.FormattingParameters) ?[]const lsp.types.TextEdit {
+    return formatText(p.arena, p.context.document.text);
 }
 
 fn insertMissingSpace(line: []const u8, line_num: usize, idx: usize) ?lsp.types.TextEdit {
@@ -156,29 +153,29 @@ fn formatText(arena: std.mem.Allocator, text: []const u8) []lsp.types.TextEdit {
     return edits.items;
 }
 
-fn handleCompletion(arena: std.mem.Allocator, context: *Lsp.Context, position: lsp.types.Position) ?lsp.types.CompletionList {
-    const line = context.document.getLine(position).?;
+fn handleCompletion(p: Lsp.CompletionParameters) ?lsp.types.CompletionList {
+    const line = p.context.document.getLine(p.position).?;
     if (std.mem.startsWith(u8, line, "#")) return null;
 
-    if (std.mem.indexOf(u8, line[0..position.character], " ") == null and
-        std.mem.indexOf(u8, line[0..position.character], "=") == null)
+    if (std.mem.indexOf(u8, line[0..p.position.character], " ") == null and
+        std.mem.indexOf(u8, line[0..p.position.character], "=") == null)
     {
-        const items = completion.keywords(arena, options) orelse return null;
+        const items = completion.keywords(p.arena, options) orelse return null;
         return .{ .items = items };
     }
-    if (std.mem.indexOf(u8, line[0..position.character], "=") != null) {
+    if (std.mem.indexOf(u8, line[0..p.position.character], "=") != null) {
         if (std.mem.startsWith(u8, line, "font-family")) {
-            const items = completion.fonts(arena) orelse return null;
+            const items = completion.fonts(p.arena) orelse return null;
             return .{ .items = items };
         }
         if (std.mem.startsWith(u8, line, "theme")) {
-            const items = completion.themes(arena) orelse return null;
+            const items = completion.themes(p.arena) orelse return null;
             return .{ .items = items };
         }
         if (std.mem.startsWith(u8, line, "keybind") and
-            std.mem.containsAtLeast(u8, line[0..position.character], 2, "="))
+            std.mem.containsAtLeast(u8, line[0..p.position.character], 2, "="))
         {
-            const items = completion.actions(arena) orelse return null;
+            const items = completion.actions(p.arena) orelse return null;
             return .{ .items = items };
         }
         if (std.mem.startsWith(u8, line, "background") or
@@ -190,9 +187,9 @@ fn handleCompletion(arena: std.mem.Allocator, context: *Lsp.Context, position: l
             std.mem.startsWith(u8, line, "unfocused-split-fill") or
             std.mem.startsWith(u8, line, "macos-icon-ghost-color") or
             std.mem.startsWith(u8, line, "macos-icon-screen-color") or
-            (std.mem.startsWith(u8, line, "palette") and std.mem.containsAtLeast(u8, line[0..position.character], 2, "=")))
+            (std.mem.startsWith(u8, line, "palette") and std.mem.containsAtLeast(u8, line[0..p.position.character], 2, "=")))
         {
-            const items = completion.colors(arena) orelse return null;
+            const items = completion.colors(p.arena) orelse return null;
             return .{ .items = items };
         }
     }
