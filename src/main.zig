@@ -38,7 +38,7 @@ fn createOptionsMap(alloc: std.mem.Allocator) !std.StringHashMap(Option) {
     const res = try std.process.Child.run(.{
         .allocator = alloc,
         .argv = &[_][]const u8{ "ghostty", "+show-config", "--default", "--docs" },
-        .max_output_bytes = 100_000,
+        .max_output_bytes = 500_000,
     });
     defer allocator.free(res.stdout);
     defer allocator.free(res.stderr);
