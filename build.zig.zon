@@ -1,12 +1,12 @@
 .{
-    .name = "ghostty-ls",
+    .name = .ghostty_ls,
 
     .version = "0.0.0",
 
     .dependencies = .{
         .babel = .{
-            .url = "https://github.com/MKindberg/babel/archive/refs/tags/v0.9.0.tar.gz",
-            .hash = "122081eb2035f3b1bacff19fd85f1407f1136be93091e85f45ee88714929bac9a0b3",
+            .url = "https://github.com/MKindberg/babel/archive/refs/tags/v0.10.0.tar.gz",
+            .hash = "babel-0.10.0-zYhD5yAtAQCzDg3gCad6y6JdnBYuTZFh2N29BFAxhzM_",
         },
     },
     .paths = .{
@@ -14,4 +14,5 @@
         "build.zig.zon",
         "src",
     },
+    .fingerprint = 0xe33a70c9ac96e2b,
 }

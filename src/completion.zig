@@ -27,7 +27,7 @@ pub fn fonts(arena: std.mem.Allocator) ?[]CompletionItem {
         .max_output_bytes = 50_000,
     }) catch return null;
 
-    var lines = std.mem.split(u8, res.stdout, "\n");
+    var lines = std.mem.splitScalar(u8, res.stdout, '\n');
     while (lines.next()) |line| {
         if (line.len == 0 or line[0] == ' ') continue;
         completions.append(.{
@@ -48,7 +48,7 @@ pub fn themes(arena: std.mem.Allocator) ?[]CompletionItem {
         .max_output_bytes = 30_000,
     }) catch return null;
 
-    var lines = std.mem.split(u8, res.stdout, "\n");
+    var lines = std.mem.splitScalar(u8, res.stdout, '\n');
     while (lines.next()) |line| {
         const end = std.mem.lastIndexOf(u8, line, " (resources)") orelse line.len;
         completions.append(.{
@@ -69,7 +69,7 @@ pub fn actions(arena: std.mem.Allocator) ?[]CompletionItem {
         .max_output_bytes = 5000,
     }) catch return null;
 
-    var lines = std.mem.split(u8, res.stdout, "\n");
+    var lines = std.mem.splitScalar(u8, res.stdout, '\n');
     while (lines.next()) |line| {
         completions.append(.{
             .label = line,
@@ -89,9 +89,9 @@ pub fn colors(arena: std.mem.Allocator) ?[]CompletionItem {
         .max_output_bytes = 50_000,
     }) catch return null;
 
-    var lines = std.mem.split(u8, std.mem.trim(u8, res.stdout, " \n"), "\n");
+    var lines = std.mem.splitScalar(u8, std.mem.trim(u8, res.stdout, " \n"), '\n');
     while (lines.next()) |line| {
-        var l = std.mem.split(u8, line, " = ");
+        var l = std.mem.splitSequence(u8, line, " = ");
         completions.append(.{
             .label = l.next().?,
             .detail = l.next().?,

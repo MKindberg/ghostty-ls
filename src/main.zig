@@ -3,7 +3,7 @@ const lsp = @import("lsp");
 const builtin = @import("builtin");
 const completion = @import("completion.zig");
 
-pub const std_options = .{ .log_level = if (builtin.mode == .Debug) .debug else .info, .logFn = lsp.log };
+pub const std_options = std.Options{ .log_level = if (builtin.mode == .Debug) .debug else .info, .logFn = lsp.fileLog("log.txt") };
 
 const Lsp = lsp.Lsp(void);
 
@@ -50,7 +50,7 @@ fn createOptionsMap(alloc: std.mem.Allocator) !std.StringHashMap(Option) {
     defer comment_buf.deinit();
     var comment: []u8 = "";
 
-    var it = std.mem.split(u8, res.stdout, "\n");
+    var it = std.mem.splitScalar(u8, res.stdout, '\n');
     while (it.next()) |line| {
         if (std.mem.startsWith(u8, line, "#")) {
             try comment_buf.append(line[2..]);
@@ -114,7 +114,7 @@ fn singleCharRange(line: usize, char: usize) lsp.types.Range {
 }
 fn formatText(arena: std.mem.Allocator, text: []const u8) []lsp.types.TextEdit {
     var edits = std.ArrayList(lsp.types.TextEdit).init(arena);
-    var lines = std.mem.split(u8, text, "\n");
+    var lines = std.mem.splitScalar(u8, text, '\n');
     var l: usize = 0;
     while (lines.next()) |line| : (l += 1) {
         if (std.mem.indexOf(u8, line, "#")) |idx| {
