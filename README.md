@@ -14,18 +14,11 @@ A language server providing the following features
 `{"mkindberg/ghostty-ls", config = true},`
 or set it up manually by adding the following code to your config
    ```lua
-    local function setup_ghostty_ls()
-        local client = vim.lsp.start_client { name = "ghostty-ls", cmd = { "ghostty-ls" }, }
-
-        if not client then
-            vim.notify("Failed to start ghostty-ls")
-        else
-            vim.api.nvim_create_autocmd("FileType",
-                { pattern = "ghostty", callback = function() vim.lsp.buf_attach_client(0, client) end }
-            )
-        end
-    end
-    setup_ghostty_ls()
+    vim.lsp.config.ghostty = {
+        cmd = {"ghostty-ls"},
+        filetypes = {"ghostty"},
+    }
+    vim.lsp.enable("ghostty")
    ```
 ### Visual Studio Code
 1. Download the vsix file and install it with `code --install-extension ghostty-ls-0.0.1.vsix`
