@@ -4,7 +4,7 @@ const Option = @import("main.zig").Option;
 const CompletionItem = types.CompletionItem;
 
 pub fn keywords(arena: std.mem.Allocator, options: std.StringHashMap(Option)) ?[]CompletionItem {
-    var completions = std.ArrayList(CompletionItem).init(arena);
+    var completions = std.array_list.Managed(CompletionItem).init(arena);
 
     var opt_it = options.iterator();
     while (opt_it.next()) |opt| {
@@ -19,7 +19,7 @@ pub fn keywords(arena: std.mem.Allocator, options: std.StringHashMap(Option)) ?[
 }
 
 pub fn fonts(arena: std.mem.Allocator) ?[]CompletionItem {
-    var completions = std.ArrayList(CompletionItem).init(arena);
+    var completions = std.array_list.Managed(CompletionItem).init(arena);
 
     const res = std.process.Child.run(.{
         .allocator = arena,
@@ -40,7 +40,7 @@ pub fn fonts(arena: std.mem.Allocator) ?[]CompletionItem {
 }
 
 pub fn themes(arena: std.mem.Allocator) ?[]CompletionItem {
-    var completions = std.ArrayList(CompletionItem).init(arena);
+    var completions = std.array_list.Managed(CompletionItem).init(arena);
 
     const res = std.process.Child.run(.{
         .allocator = arena,
@@ -61,7 +61,7 @@ pub fn themes(arena: std.mem.Allocator) ?[]CompletionItem {
 }
 
 pub fn actions(arena: std.mem.Allocator) ?[]CompletionItem {
-    var completions = std.ArrayList(CompletionItem).init(arena);
+    var completions = std.array_list.Managed(CompletionItem).init(arena);
 
     const res = std.process.Child.run(.{
         .allocator = arena,
@@ -81,7 +81,7 @@ pub fn actions(arena: std.mem.Allocator) ?[]CompletionItem {
 }
 
 pub fn colors(arena: std.mem.Allocator) ?[]CompletionItem {
-    var completions = std.ArrayList(CompletionItem).init(arena);
+    var completions = std.array_list.Managed(CompletionItem).init(arena);
 
     const res = std.process.Child.run(.{
         .allocator = arena,

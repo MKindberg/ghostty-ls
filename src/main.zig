@@ -5,7 +5,7 @@ const completion = @import("completion.zig");
 
 pub const std_options = std.Options{ .log_level = if (builtin.mode == .Debug) .debug else .info, .logFn = lsp.fileLog("log.txt") };
 
-const Lsp = lsp.Lsp(void);
+const Lsp = lsp.Lsp(.{});
 
 pub const Option = struct {
     name: []const u8,
@@ -20,10 +20,11 @@ var options: std.StringHashMap(Option) = undefined;
 
 pub fn main() !u8 {
     options = try createOptionsMap(allocator);
-    const server_data = lsp.types.ServerData{
-        .serverInfo = .{ .name = "ghostty-ls", .version = "0.1.0" },
+    const server_info = lsp.types.ServerInfo{
+        .name = "ghostty-ls",
+        .version = "0.1.0",
     };
-    var server = Lsp.init(allocator, server_data);
+    var server = Lsp.init(allocator, server_info);
     defer server.deinit();
 
     server.registerHoverCallback(handleHover);
@@ -46,7 +47,7 @@ fn createOptionsMap(alloc: std.mem.Allocator) !std.StringHashMap(Option) {
     var opt = std.StringHashMap(Option).init(alloc);
     errdefer opt.deinit();
 
-    var comment_buf = std.ArrayList([]const u8).init(alloc);
+    var comment_buf = std.array_list.Managed([]const u8).init(alloc);
     defer comment_buf.deinit();
     var comment: []u8 = "";
 
@@ -81,14 +82,14 @@ fn handleHover(p: Lsp.HoverParameters) ?[]const u8 {
 
 fn handleRangeFormat(p: Lsp.RangeFormattingParameters) ?[]const lsp.types.TextEdit {
     const doc = p.context.document;
-    const offset = lsp.Document.posToIdx(doc.text, p.range.start).?;
+    const offset = doc.posToIdx(p.range.start).?;
     const t = p.context.document.getRange(p.range).?;
     const edits = formatText(p.arena, t);
     for (edits) |*e| {
-        const start = lsp.Document.posToIdx(t, e.range.start).?;
-        const end = lsp.Document.posToIdx(t, e.range.start).?;
-        e.range.start = lsp.Document.idxToPos(doc.text, offset + start).?;
-        e.range.end = lsp.Document.idxToPos(doc.text, offset + end).?;
+        const start = lsp.Document.posToIdxText(t, e.range.start).?;
+        const end = lsp.Document.posToIdxText(t, e.range.start).?;
+        e.range.start = doc.idxToPos(offset + start).?;
+        e.range.end = doc.idxToPos(offset + end).?;
     }
     return edits;
 }
@@ -113,7 +114,7 @@ fn singleCharRange(line: usize, char: usize) lsp.types.Range {
     };
 }
 fn formatText(arena: std.mem.Allocator, text: []const u8) []lsp.types.TextEdit {
-    var edits = std.ArrayList(lsp.types.TextEdit).init(arena);
+    var edits = std.array_list.Managed(lsp.types.TextEdit).init(arena);
     var lines = std.mem.splitScalar(u8, text, '\n');
     var l: usize = 0;
     while (lines.next()) |line| : (l += 1) {
