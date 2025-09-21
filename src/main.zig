@@ -24,13 +24,20 @@ pub fn main() !u8 {
         .name = "ghostty-ls",
         .version = "0.1.0",
     };
-    var server = Lsp.init(allocator, server_info);
+
+    var in_buffer: [4096]u8 = undefined;
+    var out_buffer: [4096]u8 = undefined;
+    var stdin = std.fs.File.stdin().reader(&in_buffer);
+    var stdout = std.fs.File.stdout().writer(&out_buffer);
+
+    var server = Lsp.init(allocator, &stdin.interface, &stdout.interface, server_info);
     defer server.deinit();
 
     server.registerHoverCallback(handleHover);
     server.registerFormattingCallback(handleFormat);
     server.registerRangeFormattingCallback(handleRangeFormat);
     server.registerCompletionCallback(handleCompletion);
+
 
     return server.start();
 }
