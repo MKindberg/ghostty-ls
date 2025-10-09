@@ -118,6 +118,12 @@ fn formatText(arena: std.mem.Allocator, text: []const u8) []lsp.types.TextEdit {
     var l: usize = 0;
     while (lines.next()) |line| : (l += 1) {
         if (std.mem.indexOf(u8, line, "#")) |idx| {
+            // Comments are only valid on their own line
+            if (std.mem.trim(u8, line[0..idx], " ").len != 0) continue;
+            // Don't format empty comments
+            if (idx == line.len - 1) continue;
+            // Don't insert spaces in #########
+            if (line[idx + 1] == '#') continue;
             if (line[idx + 1] != ' ') {
                 edits.append(
                     .{
