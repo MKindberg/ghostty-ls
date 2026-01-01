@@ -80,21 +80,40 @@ pub fn actions(arena: std.mem.Allocator) ?[]CompletionItem {
     return completions.items;
 }
 
-pub fn colors(arena: std.mem.Allocator) ?[]CompletionItem {
-    var completions = std.array_list.Managed(CompletionItem).init(arena);
+pub const Color = struct {
+    name: []const u8,
+    code: []const u8,
+};
 
+pub fn colorList(arena: std.mem.Allocator) ?[]const Color {
     const res = std.process.Child.run(.{
         .allocator = arena,
         .argv = &[_][]const u8{ "ghostty", "+list-colors" },
         .max_output_bytes = 50_000,
     }) catch return null;
 
+    var list = std.ArrayList(Color).initCapacity(arena, std.mem.count(u8, res.stdout, "\n")) catch return null;
     var lines = std.mem.splitScalar(u8, std.mem.trim(u8, res.stdout, " \n"), '\n');
     while (lines.next()) |line| {
-        var l = std.mem.splitSequence(u8, line, " = ");
+        var parts = std.mem.splitSequence(u8, line, " = ");
+        list.appendAssumeCapacity(.{
+            .name = parts.next() orelse return list.items,
+            .code = parts.next() orelse return list.items,
+        });
+    }
+
+    return list.items;
+}
+
+pub fn colors(arena: std.mem.Allocator) ?[]CompletionItem {
+    var completions = std.array_list.Managed(CompletionItem).init(arena);
+
+    const color_list = colorList(arena) orelse return null;
+
+    for (color_list) |c| {
         completions.append(.{
-            .label = l.next().?,
-            .detail = l.next().?,
+            .label = c.name,
+            .detail = c.code,
             .kind = .Value,
         }) catch return null;
     }

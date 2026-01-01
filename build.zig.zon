@@ -5,8 +5,8 @@
 
     .dependencies = .{
         .babel = .{
-            .url = "git+https://github.com/mkindberg/babel/?ref=HEAD#8c30488b49cda6fbf67f66467350f8986b98eb09",
-            .hash = "babel-0.11.0-zYhD54cvAQA5N1HjUWHa110ZPLPBTWQXwN2v_sJ35HAY",
+            .url = "../babel",
+            .hash = "babel-0.11.0-zYhD51qaAQD2i7exSthMoWRhAnNBncpYBozQODwZ2xXv",
         },
     },
     .paths = .{

@@ -3,7 +3,7 @@ const lsp = @import("lsp");
 const builtin = @import("builtin");
 const completion = @import("completion.zig");
 
-pub const std_options = std.Options{ .log_level = if (builtin.mode == .Debug) .debug else .info, .logFn = lsp.fileLog("log.txt") };
+pub const std_options = std.Options{ .log_level = if (builtin.mode == .Debug) .debug else .info, .logFn = lsp.log };
 
 const Lsp = lsp.Lsp(.{});
 
@@ -33,13 +33,20 @@ pub fn main() !u8 {
     var server = Lsp.init(allocator, &stdin.interface, &stdout.interface, server_info);
     defer server.deinit();
 
-    server.registerHoverCallback(handleHover);
-    server.registerFormattingCallback(handleFormat);
-    server.registerRangeFormattingCallback(handleRangeFormat);
-    server.registerCompletionCallback(handleCompletion);
+    return server.start(setup);
+}
 
-
-    return server.start();
+fn setup(p: Lsp.SetupParameters) void {
+    if (p.initialize.capabilities.textDocument.?.hover != null)
+        p.server.registerHoverCallback(handleHover);
+    if (p.initialize.capabilities.textDocument.?.formatting != null)
+        p.server.registerFormattingCallback(handleFormat);
+    if (p.initialize.capabilities.textDocument.?.rangeFormatting != null)
+        p.server.registerRangeFormattingCallback(handleRangeFormat);
+    if (p.initialize.capabilities.textDocument.?.completion != null)
+        p.server.registerCompletionCallback(handleCompletion);
+    if (p.initialize.capabilities.textDocument.?.colorProvider != null)
+        p.server.registerColorCallback(handleColor)
 }
 
 fn createOptionsMap(alloc: std.mem.Allocator) !std.StringHashMap(Option) {
@@ -171,42 +178,57 @@ fn handleCompletion(p: Lsp.CompletionParameters) ?lsp.types.CompletionList {
     const line = p.context.document.getLine(p.position).?;
     if (std.mem.startsWith(u8, line, "#")) return null;
 
-    if (std.mem.indexOf(u8, line[0..p.position.character], " ") == null and
-        std.mem.indexOf(u8, line[0..p.position.character], "=") == null)
-    {
-        const items = completion.keywords(p.arena, options) orelse return null;
-        return .{ .items = items };
-    }
-    if (std.mem.indexOf(u8, line[0..p.position.character], "=") != null) {
-        if (std.mem.startsWith(u8, line, "font-family")) {
-            const items = completion.fonts(p.arena) orelse return null;
-            return .{ .items = items };
-        }
-        if (std.mem.startsWith(u8, line, "theme")) {
-            const items = completion.themes(p.arena) orelse return null;
-            return .{ .items = items };
-        }
-        if (std.mem.startsWith(u8, line, "keybind") and
-            std.mem.containsAtLeast(u8, line[0..p.position.character], 2, "="))
+    const items = items: {
+        if (std.mem.indexOf(u8, line[0..p.position.character], " ") == null and
+            std.mem.indexOf(u8, line[0..p.position.character], "=") == null)
         {
-            const items = completion.actions(p.arena) orelse return null;
-            return .{ .items = items };
-        }
-        if (std.mem.startsWith(u8, line, "background") or
-            std.mem.startsWith(u8, line, "foreground") or
-            std.mem.startsWith(u8, line, "selection-foreground") or
-            std.mem.startsWith(u8, line, "selection-background") or
-            std.mem.startsWith(u8, line, "cursor-color") or
-            std.mem.startsWith(u8, line, "cursor-text") or
-            std.mem.startsWith(u8, line, "unfocused-split-fill") or
-            std.mem.startsWith(u8, line, "macos-icon-ghost-color") or
-            std.mem.startsWith(u8, line, "macos-icon-screen-color") or
-            (std.mem.startsWith(u8, line, "palette") and std.mem.containsAtLeast(u8, line[0..p.position.character], 2, "=")))
-        {
-            const items = completion.colors(p.arena) orelse return null;
-            return .{ .items = items };
-        }
-    }
+            break :items completion.keywords(p.arena, options) orelse return null;
+        } else if (std.mem.indexOf(u8, line[0..p.position.character], "=") != null) {
+            if (std.mem.startsWith(u8, line, "font-family")) {
+                break :items completion.fonts(p.arena) orelse return null;
+            }
+            if (std.mem.startsWith(u8, line, "theme")) {
+                break :items completion.themes(p.arena) orelse return null;
+            }
+            if (std.mem.startsWith(u8, line, "keybind") and
+                std.mem.containsAtLeast(u8, line[0..p.position.character], 2, "="))
+            {
+                break :items completion.actions(p.arena) orelse return null;
+            }
+            if (std.mem.startsWith(u8, line, "background") or
+                std.mem.startsWith(u8, line, "foreground") or
+                std.mem.startsWith(u8, line, "selection-foreground") or
+                std.mem.startsWith(u8, line, "selection-background") or
+                std.mem.startsWith(u8, line, "cursor-color") or
+                std.mem.startsWith(u8, line, "cursor-text") or
+                std.mem.startsWith(u8, line, "unfocused-split-fill") or
+                std.mem.startsWith(u8, line, "macos-icon-ghost-color") or
+                std.mem.startsWith(u8, line, "macos-icon-screen-color") or
+                (std.mem.startsWith(u8, line, "palette") and std.mem.containsAtLeast(u8, line[0..p.position.character], 2, "=")))
+            {
+                break :items completion.colors(p.arena) orelse return null;
+            }
+            return null;
+        } else return null;
+    };
 
-    return null;
+    return .{ .items = items };
+}
+
+fn handleColor(p: Lsp.ColorParameters) Lsp.ColorReturn {
+    const doc: lsp.Document = p.context.document;
+    var color_info = std.array_list.Managed(lsp.types.ColorInformation).init(p.arena);
+    const colors = completion.colorList(p.arena) orelse return color_info.items;
+    for (colors) |c| {
+        var found = doc.find(c.name);
+        while (found.next()) |f| {
+            color_info.append(
+                .{
+                    .color = lsp.types.Color.fromHex(c.code) orelse continue,
+                    .range = f,
+                },
+            ) catch unreachable;
+        }
+    }
+    return color_info.items;
 }
