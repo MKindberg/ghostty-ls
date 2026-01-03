@@ -8,7 +8,7 @@ const parser = @import("parser.zig");
 
 pub const std_options = std.Options{ .log_level = if (builtin.mode == .Debug) .debug else .info, .logFn = lsp.log };
 
-const Lsp = lsp.Lsp(.{});
+const Lsp = lsp.Lsp(.{ .state_type = parser.Config });
 
 pub const Option = struct {
     name: []const u8,
@@ -54,6 +54,8 @@ pub fn main() !u8 {
 }
 
 fn setup(p: Lsp.SetupParameters) void {
+    p.server.registerDocOpenCallback(handleOpen);
+    p.server.registerDocChangeCallback(handleChange);
     if (p.initialize.capabilities.textDocument.?.hover != null)
         p.server.registerHoverCallback(handleHover);
     if (p.initialize.capabilities.textDocument.?.formatting != null)
@@ -64,6 +66,31 @@ fn setup(p: Lsp.SetupParameters) void {
         p.server.registerCompletionCallback(handleCompletion);
     if (p.initialize.capabilities.textDocument.?.colorProvider != null)
         p.server.registerColorCallback(handleColor);
+    p.server.registerDocCloseCallback(handleClose);
+}
+
+fn handleOpen(p: Lsp.OpenDocumentParameters) Lsp.OpenDocumentReturn {
+    p.context.state = parser.Config.init(allocator);
+}
+
+fn handleClose(p: Lsp.CloseDocumentParameters) Lsp.CloseDocumentReturn {
+    p.context.state.?.deinit();
+}
+fn handleChange(p: Lsp.ChangeDocumentParameters) Lsp.ChangeDocumentReturn {
+    var config: parser.Config = p.context.state.?;
+    config.update(p.context.document);
+
+    var diagnostics: std.ArrayList(lsp.types.Diagnostic) = .empty;
+    for (config.config.items) |c| {
+        if (!options.map.contains(c.key.name)) {
+            const message = std.fmt.allocPrint(p.arena, "Unknown key \"{s}\"", .{c.key.name}) catch unreachable;
+            diagnostics.append(p.arena, .{ .message = message, .range = c.key.range, .severity = .Error }) catch unreachable;
+        }
+    }
+    p.context.server.writeResponse(p.arena, lsp.types.Notification.PublishDiagnostics{ .params = .{
+        .uri = p.context.document.uri,
+        .diagnostics = diagnostics.items,
+    } }) catch unreachable;
 }
 
 fn handleHover(p: Lsp.HoverParameters) ?[]const u8 {

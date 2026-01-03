@@ -7,40 +7,27 @@ pub const Config = struct {
     allocator: std.mem.Allocator,
 
     pub const Value = struct {
-        data: []const u8,
+        name: []const u8,
         range: lsp.types.Range,
     };
 
     pub const ConfigItem = struct {
         key: Value,
         value: Value,
-    };
 
-    const Self = @This();
-    pub fn init(allocator: std.mem.Allocator) Self {
-        return Self{
-            .config = .empty,
-            .allocator = allocator,
-        };
-    }
+        pub fn parse(line: []const u8, line_num: usize) ?ConfigItem {
+            const l = std.mem.trim(u8, line, " ");
+            if (l.len == 0 or l[0] == '#') return null;
 
-    pub fn update(self: *Self, doc: lsp.Document) void {
-        self.config.clearRetainingCapacity();
-        var lines = std.mem.splitScalar(u8, doc.text, '\n');
-
-        var line_num = 0;
-        while (lines.next()) |l| : (line_num += 1) {
-            const line = std.mem.trim(u8, l, " ");
-            if (line.len == 0 or line[0] == '#') continue;
-
-            const split_idx = std.mem.indexOfScalar(u8, l, '=') orelse continue;
+            const split_idx = std.mem.indexOfScalar(u8, l, '=') orelse return null;
             const key = std.mem.trim(u8, l[0..split_idx], " ");
             const key_start = std.mem.indexOf(u8, l, key).?;
             const value = std.mem.trim(u8, l[split_idx..], " ");
-            const value_start = std.mem.indexOfPos(u8, l, value).?;
-            self.config.append(self.allocator, .{
+            const value_start = std.mem.indexOfPos(u8, l, split_idx, value).?;
+
+            return .{
                 .key = .{
-                    .data = key,
+                    .name = key,
                     .range = .{
                         .start = .{
                             .line = line_num,
@@ -53,7 +40,7 @@ pub const Config = struct {
                     },
                 },
                 .value = .{
-                    .data = value,
+                    .name = value,
                     .range = .{
                         .start = .{
                             .line = line_num,
@@ -65,7 +52,25 @@ pub const Config = struct {
                         },
                     },
                 },
-            });
+            };
+        }
+    };
+
+    const Self = @This();
+    pub fn init(allocator: std.mem.Allocator) ?Self {
+        return Self{
+            .config = .empty,
+            .allocator = allocator,
+        };
+    }
+
+    pub fn update(self: *Self, doc: lsp.Document) void {
+        self.config.clearRetainingCapacity();
+        var lines = std.mem.splitScalar(u8, doc.text, '\n');
+
+        var line_num: usize = 0;
+        while (lines.next()) |line| : (line_num += 1) {
+            self.config.append(self.allocator, ConfigItem.parse(line, line_num) orelse continue) catch unreachable;
         }
     }
 
