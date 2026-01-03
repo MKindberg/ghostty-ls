@@ -1,7 +1,10 @@
 const std = @import("std");
-const lsp = @import("lsp");
 const builtin = @import("builtin");
+
+const lsp = @import("lsp");
+
 const completion = @import("completion.zig");
+const parser = @import("parser.zig");
 
 pub const std_options = std.Options{ .log_level = if (builtin.mode == .Debug) .debug else .info, .logFn = lsp.log };
 
@@ -16,10 +19,24 @@ pub const Option = struct {
 var gpa = std.heap.GeneralPurposeAllocator(.{}){};
 const allocator = gpa.allocator();
 
-var options: std.StringHashMap(Option) = undefined;
+var actions: parser.Actions = undefined;
+var colors: parser.Colors = undefined;
+var fonts: parser.Fonts = undefined;
+var options: parser.OptionsMap = undefined;
+var themes: parser.Themes = undefined;
 
 pub fn main() !u8 {
-    options = try createOptionsMap(allocator);
+    actions = try parser.Actions.init(allocator);
+    defer actions.deinit();
+    colors = try parser.Colors.init(allocator);
+    defer colors.deinit();
+    fonts = try parser.Fonts.init(allocator);
+    defer fonts.deinit();
+    options = try parser.OptionsMap.init(allocator);
+    defer options.deinit();
+    themes = try parser.Themes.init(allocator);
+    defer themes.deinit();
+
     const server_info = lsp.types.ServerInfo{
         .name = "ghostty-ls",
         .version = "0.1.0",
@@ -46,47 +63,9 @@ fn setup(p: Lsp.SetupParameters) void {
     if (p.initialize.capabilities.textDocument.?.completion != null)
         p.server.registerCompletionCallback(handleCompletion);
     if (p.initialize.capabilities.textDocument.?.colorProvider != null)
-        p.server.registerColorCallback(handleColor)
+        p.server.registerColorCallback(handleColor);
 }
 
-fn createOptionsMap(alloc: std.mem.Allocator) !std.StringHashMap(Option) {
-    const res = try std.process.Child.run(.{
-        .allocator = alloc,
-        .argv = &[_][]const u8{ "ghostty", "+show-config", "--default", "--docs" },
-        .max_output_bytes = 500_000,
-    });
-    defer allocator.free(res.stdout);
-    defer allocator.free(res.stderr);
-
-    var opt = std.StringHashMap(Option).init(alloc);
-    errdefer opt.deinit();
-
-    var comment_buf = std.array_list.Managed([]const u8).init(alloc);
-    defer comment_buf.deinit();
-    var comment: []u8 = "";
-
-    var it = std.mem.splitScalar(u8, res.stdout, '\n');
-    while (it.next()) |line| {
-        if (std.mem.startsWith(u8, line, "#")) {
-            try comment_buf.append(line[2..]);
-            continue;
-        }
-
-        if (comment_buf.items.len > 0) {
-            comment = try std.mem.join(alloc, "\n", comment_buf.items);
-            comment_buf.clearRetainingCapacity();
-        }
-        if (std.mem.indexOf(u8, line, "=")) |idx| {
-            const name = try alloc.dupe(u8, std.mem.trim(u8, line[0..idx], " "));
-            const default = try alloc.dupe(u8, std.mem.trim(u8, line[idx..], " "));
-
-            const o = Option{ .name = name, .comment = comment, .default = default };
-
-            try opt.put(name, o);
-        }
-    }
-    return opt;
-}
 fn handleHover(p: Lsp.HoverParameters) ?[]const u8 {
     const word = p.context.document.getWord(p.position, "\n =") orelse return null;
     const opt = options.get(word) orelse return null;
@@ -175,7 +154,7 @@ fn formatText(arena: std.mem.Allocator, text: []const u8) []lsp.types.TextEdit {
 }
 
 fn handleCompletion(p: Lsp.CompletionParameters) ?lsp.types.CompletionList {
-    const line = p.context.document.getLine(p.position).?;
+    const line = std.mem.trim(u8, p.context.document.getLine(p.position).?, " ");
     if (std.mem.startsWith(u8, line, "#")) return null;
 
     const items = items: {
@@ -185,15 +164,15 @@ fn handleCompletion(p: Lsp.CompletionParameters) ?lsp.types.CompletionList {
             break :items completion.keywords(p.arena, options) orelse return null;
         } else if (std.mem.indexOf(u8, line[0..p.position.character], "=") != null) {
             if (std.mem.startsWith(u8, line, "font-family")) {
-                break :items completion.fonts(p.arena) orelse return null;
+                break :items completion.fonts(p.arena, fonts) orelse return null;
             }
             if (std.mem.startsWith(u8, line, "theme")) {
-                break :items completion.themes(p.arena) orelse return null;
+                break :items completion.themes(p.arena, themes) orelse return null;
             }
             if (std.mem.startsWith(u8, line, "keybind") and
                 std.mem.containsAtLeast(u8, line[0..p.position.character], 2, "="))
             {
-                break :items completion.actions(p.arena) orelse return null;
+                break :items completion.actions(p.arena, actions) orelse return null;
             }
             if (std.mem.startsWith(u8, line, "background") or
                 std.mem.startsWith(u8, line, "foreground") or
@@ -206,7 +185,8 @@ fn handleCompletion(p: Lsp.CompletionParameters) ?lsp.types.CompletionList {
                 std.mem.startsWith(u8, line, "macos-icon-screen-color") or
                 (std.mem.startsWith(u8, line, "palette") and std.mem.containsAtLeast(u8, line[0..p.position.character], 2, "=")))
             {
-                break :items completion.colors(p.arena) orelse return null;
+                std.debug.print("complete color\n", .{});
+                break :items completion.colors(p.arena, colors) orelse return null;
             }
             return null;
         } else return null;
@@ -218,8 +198,7 @@ fn handleCompletion(p: Lsp.CompletionParameters) ?lsp.types.CompletionList {
 fn handleColor(p: Lsp.ColorParameters) Lsp.ColorReturn {
     const doc: lsp.Document = p.context.document;
     var color_info = std.array_list.Managed(lsp.types.ColorInformation).init(p.arena);
-    const colors = completion.colorList(p.arena) orelse return color_info.items;
-    for (colors) |c| {
+    for (colors.list.items) |c| {
         var found = doc.find(c.name);
         while (found.next()) |f| {
             color_info.append(

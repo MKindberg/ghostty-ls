@@ -1,12 +1,14 @@
 const std = @import("std");
+
 const types = @import("lsp").types;
-const Option = @import("main.zig").Option;
 const CompletionItem = types.CompletionItem;
 
-pub fn keywords(arena: std.mem.Allocator, options: std.StringHashMap(Option)) ?[]CompletionItem {
+const parser = @import("parser.zig");
+
+pub fn keywords(arena: std.mem.Allocator, options: parser.OptionsMap) ?[]CompletionItem {
     var completions = std.array_list.Managed(CompletionItem).init(arena);
 
-    var opt_it = options.iterator();
+    var opt_it = options.map.iterator();
     while (opt_it.next()) |opt| {
         completions.append(.{
             .label = opt.key_ptr.*,
@@ -18,20 +20,12 @@ pub fn keywords(arena: std.mem.Allocator, options: std.StringHashMap(Option)) ?[
     return completions.items;
 }
 
-pub fn fonts(arena: std.mem.Allocator) ?[]CompletionItem {
+pub fn fonts(arena: std.mem.Allocator, font_list: parser.Fonts) ?[]CompletionItem {
     var completions = std.array_list.Managed(CompletionItem).init(arena);
 
-    const res = std.process.Child.run(.{
-        .allocator = arena,
-        .argv = &[_][]const u8{ "ghostty", "+list-fonts" },
-        .max_output_bytes = 50_000,
-    }) catch return null;
-
-    var lines = std.mem.splitScalar(u8, res.stdout, '\n');
-    while (lines.next()) |line| {
-        if (line.len == 0 or line[0] == ' ') continue;
+    for (font_list.list.items) |f| {
         completions.append(.{
-            .label = line,
+            .label = f,
             .kind = .Value,
         }) catch return null;
     }
@@ -39,20 +33,12 @@ pub fn fonts(arena: std.mem.Allocator) ?[]CompletionItem {
     return completions.items;
 }
 
-pub fn themes(arena: std.mem.Allocator) ?[]CompletionItem {
+pub fn themes(arena: std.mem.Allocator, theme_list: parser.Themes) ?[]CompletionItem {
     var completions = std.array_list.Managed(CompletionItem).init(arena);
 
-    const res = std.process.Child.run(.{
-        .allocator = arena,
-        .argv = &[_][]const u8{ "ghostty", "+list-themes", "--plain" },
-        .max_output_bytes = 30_000,
-    }) catch return null;
-
-    var lines = std.mem.splitScalar(u8, res.stdout, '\n');
-    while (lines.next()) |line| {
-        const end = std.mem.lastIndexOf(u8, line, " (resources)") orelse line.len;
+    for (theme_list.list.items) |t| {
         completions.append(.{
-            .label = line[0..end],
+            .label = t,
             .kind = .Value,
         }) catch return null;
     }
@@ -60,19 +46,12 @@ pub fn themes(arena: std.mem.Allocator) ?[]CompletionItem {
     return completions.items;
 }
 
-pub fn actions(arena: std.mem.Allocator) ?[]CompletionItem {
+pub fn actions(arena: std.mem.Allocator, action_list: parser.Actions) ?[]CompletionItem {
     var completions = std.array_list.Managed(CompletionItem).init(arena);
 
-    const res = std.process.Child.run(.{
-        .allocator = arena,
-        .argv = &[_][]const u8{ "ghostty", "+list-actions" },
-        .max_output_bytes = 5000,
-    }) catch return null;
-
-    var lines = std.mem.splitScalar(u8, res.stdout, '\n');
-    while (lines.next()) |line| {
+    for (action_list.list.items) |a| {
         completions.append(.{
-            .label = line,
+            .label = a,
             .kind = .Value,
         }) catch return null;
     }
@@ -80,37 +59,10 @@ pub fn actions(arena: std.mem.Allocator) ?[]CompletionItem {
     return completions.items;
 }
 
-pub const Color = struct {
-    name: []const u8,
-    code: []const u8,
-};
-
-pub fn colorList(arena: std.mem.Allocator) ?[]const Color {
-    const res = std.process.Child.run(.{
-        .allocator = arena,
-        .argv = &[_][]const u8{ "ghostty", "+list-colors" },
-        .max_output_bytes = 50_000,
-    }) catch return null;
-
-    var list = std.ArrayList(Color).initCapacity(arena, std.mem.count(u8, res.stdout, "\n")) catch return null;
-    var lines = std.mem.splitScalar(u8, std.mem.trim(u8, res.stdout, " \n"), '\n');
-    while (lines.next()) |line| {
-        var parts = std.mem.splitSequence(u8, line, " = ");
-        list.appendAssumeCapacity(.{
-            .name = parts.next() orelse return list.items,
-            .code = parts.next() orelse return list.items,
-        });
-    }
-
-    return list.items;
-}
-
-pub fn colors(arena: std.mem.Allocator) ?[]CompletionItem {
+pub fn colors(arena: std.mem.Allocator, color_list: parser.Colors) ?[]CompletionItem {
     var completions = std.array_list.Managed(CompletionItem).init(arena);
 
-    const color_list = colorList(arena) orelse return null;
-
-    for (color_list) |c| {
+    for (color_list.list.items) |c| {
         completions.append(.{
             .label = c.name,
             .detail = c.code,
