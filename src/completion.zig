@@ -5,8 +5,8 @@ const CompletionItem = types.CompletionItem;
 
 const parser = @import("parser.zig");
 
-pub fn keywords(arena: std.mem.Allocator, options: parser.OptionsMap) ?[]CompletionItem {
-    var completions = std.array_list.Managed(CompletionItem).init(arena);
+pub fn keywords(allocator: std.mem.Allocator, options: parser.OptionsMap) ?[]CompletionItem {
+    var completions = std.array_list.Managed(CompletionItem).init(allocator);
 
     var opt_it = options.map.iterator();
     while (opt_it.next()) |opt| {
@@ -20,8 +20,8 @@ pub fn keywords(arena: std.mem.Allocator, options: parser.OptionsMap) ?[]Complet
     return completions.items;
 }
 
-pub fn fonts(arena: std.mem.Allocator, font_list: parser.Fonts) ?[]CompletionItem {
-    var completions = std.array_list.Managed(CompletionItem).init(arena);
+pub fn fonts(allocator: std.mem.Allocator, font_list: parser.Fonts) ?[]CompletionItem {
+    var completions = std.array_list.Managed(CompletionItem).init(allocator);
 
     for (font_list.list.items) |f| {
         completions.append(.{
@@ -33,8 +33,8 @@ pub fn fonts(arena: std.mem.Allocator, font_list: parser.Fonts) ?[]CompletionIte
     return completions.items;
 }
 
-pub fn themes(arena: std.mem.Allocator, theme_list: parser.Themes) ?[]CompletionItem {
-    var completions = std.array_list.Managed(CompletionItem).init(arena);
+pub fn themes(allocator: std.mem.Allocator, theme_list: parser.Themes) ?[]CompletionItem {
+    var completions = std.array_list.Managed(CompletionItem).init(allocator);
 
     for (theme_list.list.items) |t| {
         completions.append(.{
@@ -46,8 +46,8 @@ pub fn themes(arena: std.mem.Allocator, theme_list: parser.Themes) ?[]Completion
     return completions.items;
 }
 
-pub fn actions(arena: std.mem.Allocator, action_list: parser.Actions) ?[]CompletionItem {
-    var completions = std.array_list.Managed(CompletionItem).init(arena);
+pub fn actions(allocator: std.mem.Allocator, action_list: parser.Actions) ?[]CompletionItem {
+    var completions = std.array_list.Managed(CompletionItem).init(allocator);
 
     for (action_list.list.items) |a| {
         completions.append(.{
@@ -59,13 +59,14 @@ pub fn actions(arena: std.mem.Allocator, action_list: parser.Actions) ?[]Complet
     return completions.items;
 }
 
-pub fn colors(arena: std.mem.Allocator, color_list: parser.Colors) ?[]CompletionItem {
-    var completions = std.array_list.Managed(CompletionItem).init(arena);
+pub fn colors(allocator: std.mem.Allocator, color_map: parser.Colors) ?[]CompletionItem {
+    var completions = std.array_list.Managed(CompletionItem).init(allocator);
 
-    for (color_list.list.items) |c| {
+    var it = color_map.map.iterator();
+    while (it.next()) |c| {
         completions.append(.{
-            .label = c.name,
-            .detail = c.code,
+            .label = c.key_ptr.*,
+            .detail = c.value_ptr.*,
             .kind = .Value,
         }) catch return null;
     }

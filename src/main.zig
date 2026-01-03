@@ -71,6 +71,7 @@ fn setup(p: Lsp.SetupParameters) void {
 
 fn handleOpen(p: Lsp.OpenDocumentParameters) Lsp.OpenDocumentReturn {
     p.context.state = parser.Config.init(allocator);
+    p.context.state.?.update(p.context.document);
 }
 
 fn handleClose(p: Lsp.CloseDocumentParameters) Lsp.CloseDocumentReturn {
@@ -83,11 +84,11 @@ fn handleChange(p: Lsp.ChangeDocumentParameters) Lsp.ChangeDocumentReturn {
     var diagnostics: std.ArrayList(lsp.types.Diagnostic) = .empty;
     for (config.config.items) |c| {
         if (!options.map.contains(c.key.name)) {
-            const message = std.fmt.allocPrint(p.arena, "Unknown key \"{s}\"", .{c.key.name}) catch unreachable;
-            diagnostics.append(p.arena, .{ .message = message, .range = c.key.range, .severity = .Error }) catch unreachable;
+            const message = std.fmt.allocPrint(p.allocator, "Unknown key \"{s}\"", .{c.key.name}) catch unreachable;
+            diagnostics.append(p.allocator, .{ .message = message, .range = c.key.range, .severity = .Error }) catch unreachable;
         }
     }
-    p.context.server.writeResponse(p.arena, lsp.types.Notification.PublishDiagnostics{ .params = .{
+    p.context.server.writeResponse(p.allocator, lsp.types.Notification.PublishDiagnostics{ .params = .{
         .uri = p.context.document.uri,
         .diagnostics = diagnostics.items,
     } }) catch unreachable;
@@ -97,14 +98,14 @@ fn handleHover(p: Lsp.HoverParameters) ?[]const u8 {
     const word = p.context.document.getWord(p.position, "\n =") orelse return null;
     const opt = options.get(word) orelse return null;
 
-    return std.fmt.allocPrint(p.arena, "# {s}\n\n{s}\n\nDefault: {s}", .{ opt.name, opt.comment, opt.default }) catch unreachable;
+    return std.fmt.allocPrint(p.allocator, "# {s}\n\n{s}\n\nDefault: {s}", .{ opt.name, opt.comment, opt.default }) catch unreachable;
 }
 
 fn handleRangeFormat(p: Lsp.RangeFormattingParameters) ?[]const lsp.types.TextEdit {
     const doc = p.context.document;
     const offset = doc.posToIdx(p.range.start).?;
     const t = p.context.document.getRange(p.range).?;
-    const edits = formatText(p.arena, t);
+    const edits = formatText(p.allocator, t);
     for (edits) |*e| {
         const start = lsp.Document.posToIdxText(t, e.range.start).?;
         const end = lsp.Document.posToIdxText(t, e.range.start).?;
@@ -115,7 +116,7 @@ fn handleRangeFormat(p: Lsp.RangeFormattingParameters) ?[]const lsp.types.TextEd
 }
 
 fn handleFormat(p: Lsp.FormattingParameters) ?[]const lsp.types.TextEdit {
-    return formatText(p.arena, p.context.document.text);
+    return formatText(p.allocator, p.context.document.text);
 }
 
 fn insertMissingSpace(line: []const u8, line_num: usize, idx: usize) ?lsp.types.TextEdit {
@@ -133,8 +134,8 @@ fn singleCharRange(line: usize, char: usize) lsp.types.Range {
         .end = .{ .line = line, .character = char },
     };
 }
-fn formatText(arena: std.mem.Allocator, text: []const u8) []lsp.types.TextEdit {
-    var edits = std.array_list.Managed(lsp.types.TextEdit).init(arena);
+fn formatText(alloc: std.mem.Allocator, text: []const u8) []lsp.types.TextEdit {
+    var edits = std.array_list.Managed(lsp.types.TextEdit).init(alloc);
     var lines = std.mem.splitScalar(u8, text, '\n');
     var l: usize = 0;
     while (lines.next()) |line| : (l += 1) {
@@ -180,6 +181,19 @@ fn formatText(arena: std.mem.Allocator, text: []const u8) []lsp.types.TextEdit {
     return edits.items;
 }
 
+const color_options = [_][]const u8{
+    "background",
+    "cursor-color",
+    "cursor-text",
+    "foreground",
+    "macos-icon-ghost-color",
+    "macos-icon-screen-color",
+    "palette",
+    "selection-background",
+    "selection-foreground",
+    "unfocused-split-fill",
+};
+
 fn handleCompletion(p: Lsp.CompletionParameters) ?lsp.types.CompletionList {
     const line = std.mem.trim(u8, p.context.document.getLine(p.position).?, " ");
     if (std.mem.startsWith(u8, line, "#")) return null;
@@ -188,32 +202,23 @@ fn handleCompletion(p: Lsp.CompletionParameters) ?lsp.types.CompletionList {
         if (std.mem.indexOf(u8, line[0..p.position.character], " ") == null and
             std.mem.indexOf(u8, line[0..p.position.character], "=") == null)
         {
-            break :items completion.keywords(p.arena, options) orelse return null;
+            break :items completion.keywords(p.allocator, options) orelse return null;
         } else if (std.mem.indexOf(u8, line[0..p.position.character], "=") != null) {
             if (std.mem.startsWith(u8, line, "font-family")) {
-                break :items completion.fonts(p.arena, fonts) orelse return null;
+                break :items completion.fonts(p.allocator, fonts) orelse return null;
             }
             if (std.mem.startsWith(u8, line, "theme")) {
-                break :items completion.themes(p.arena, themes) orelse return null;
+                break :items completion.themes(p.allocator, themes) orelse return null;
             }
             if (std.mem.startsWith(u8, line, "keybind") and
                 std.mem.containsAtLeast(u8, line[0..p.position.character], 2, "="))
             {
-                break :items completion.actions(p.arena, actions) orelse return null;
+                break :items completion.actions(p.allocator, actions) orelse return null;
             }
-            if (std.mem.startsWith(u8, line, "background") or
-                std.mem.startsWith(u8, line, "foreground") or
-                std.mem.startsWith(u8, line, "selection-foreground") or
-                std.mem.startsWith(u8, line, "selection-background") or
-                std.mem.startsWith(u8, line, "cursor-color") or
-                std.mem.startsWith(u8, line, "cursor-text") or
-                std.mem.startsWith(u8, line, "unfocused-split-fill") or
-                std.mem.startsWith(u8, line, "macos-icon-ghost-color") or
-                std.mem.startsWith(u8, line, "macos-icon-screen-color") or
-                (std.mem.startsWith(u8, line, "palette") and std.mem.containsAtLeast(u8, line[0..p.position.character], 2, "=")))
-            {
-                std.debug.print("complete color\n", .{});
-                break :items completion.colors(p.arena, colors) orelse return null;
+            for (color_options) |c| {
+                if (std.mem.startsWith(u8, line, c)) {
+                    break :items completion.colors(p.allocator, colors) orelse return null;
+                }
             }
             return null;
         } else return null;
@@ -223,17 +228,30 @@ fn handleCompletion(p: Lsp.CompletionParameters) ?lsp.types.CompletionList {
 }
 
 fn handleColor(p: Lsp.ColorParameters) Lsp.ColorReturn {
-    const doc: lsp.Document = p.context.document;
-    var color_info = std.array_list.Managed(lsp.types.ColorInformation).init(p.arena);
-    for (colors.list.items) |c| {
-        var found = doc.find(c.name);
-        while (found.next()) |f| {
+    const config: parser.Config = p.context.state.?;
+    var color_info = std.array_list.Managed(lsp.types.ColorInformation).init(p.allocator);
+    for (config.config.items) |c| {
+        if (lsp.types.Color.fromHex(c.value.name)) |color| {
             color_info.append(
                 .{
-                    .color = lsp.types.Color.fromHex(c.code) orelse continue,
-                    .range = f,
+                    .color = color,
+                    .range = c.value.range,
                 },
             ) catch unreachable;
+            continue;
+        }
+        for (color_options) |cc| {
+            if (!std.mem.eql(u8, cc, c.key.name)) continue;
+            if (colors.map.get(c.value.name)) |color| {
+                std.debug.print("found '{s}'\n", .{c.value.name});
+                color_info.append(
+                    .{
+                        .color = lsp.types.Color.fromHex(color) orelse continue,
+                        .range = c.value.range,
+                    },
+                ) catch unreachable;
+            }
+            break;
         }
     }
     return color_info.items;

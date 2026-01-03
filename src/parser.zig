@@ -22,7 +22,7 @@ pub const Config = struct {
             const split_idx = std.mem.indexOfScalar(u8, l, '=') orelse return null;
             const key = std.mem.trim(u8, l[0..split_idx], " ");
             const key_start = std.mem.indexOf(u8, l, key).?;
-            const value = std.mem.trim(u8, l[split_idx..], " ");
+            const value = std.mem.trim(u8, l[split_idx+1..], " ");
             const value_start = std.mem.indexOfPos(u8, l, split_idx, value).?;
 
             return .{
@@ -80,8 +80,9 @@ pub const Config = struct {
 };
 
 pub const Colors = struct {
-    list: std.ArrayList(Color),
+    map: std.StringHashMap([]const u8),
     allocator: std.mem.Allocator,
+    data: std.process.Child.RunResult,
 
     pub const Color = struct {
         name: []const u8,
@@ -96,21 +97,24 @@ pub const Colors = struct {
             .max_output_bytes = 50_000,
         });
 
-        var colors = std.ArrayList(Color).initCapacity(allocator, std.mem.count(u8, res.stdout, "\n")) catch unreachable;
+        var colors = std.StringHashMap([]const u8).init(allocator);
+        colors.ensureTotalCapacity(@intCast(std.mem.count(u8, res.stdout, "\n"))) catch unreachable;
         var lines = std.mem.splitScalar(u8, std.mem.trim(u8, res.stdout, " \n"), '\n');
         while (lines.next()) |line| {
             var parts = std.mem.splitSequence(u8, line, " = ");
-            colors.appendAssumeCapacity(.{
-                .name = parts.next() orelse continue,
-                .code = parts.next() orelse continue,
-            });
+            colors.putAssumeCapacity(
+                parts.next() orelse continue,
+                parts.next() orelse continue,
+            );
         }
 
-        return Self{ .list = colors, .allocator = allocator };
+        return Self{ .map = colors, .allocator = allocator, .data = res };
     }
 
     pub fn deinit(self: *Self) void {
-        self.list.deinit(self.allocator);
+        self.map.deinit();
+        self.allocator.free(self.data.stdout);
+        self.allocator.free(self.data.stderr);
     }
 };
 
