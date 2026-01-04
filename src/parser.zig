@@ -93,7 +93,7 @@ pub const Colors = struct {
     pub fn init(allocator: std.mem.Allocator) !Self {
         const res = try std.process.Child.run(.{
             .allocator = allocator,
-            .argv = &[_][]const u8{ "ghostty", "+list-colors" },
+            .argv = &[_][]const u8{ "ghostty", "+list-colors", "--plain"},
             .max_output_bytes = 50_000,
         });
 
