@@ -203,20 +203,21 @@ fn handleCompletion(p: Lsp.CompletionParameters) ?lsp.types.CompletionList {
             std.mem.indexOf(u8, line[0..p.position.character], "=") == null)
         {
             break :items completion.keywords(p.allocator, options) orelse return null;
-        } else if (std.mem.indexOf(u8, line[0..p.position.character], "=") != null) {
-            if (std.mem.startsWith(u8, line, "font-family")) {
+        } else if (std.mem.indexOf(u8, line[0..p.position.character], "=")) |idx| {
+            const keyword = std.mem.trim(u8, line[0..idx], " ");
+            if (std.mem.eql(u8, keyword, "font-family")) {
                 break :items completion.fonts(p.allocator, fonts) orelse return null;
             }
-            if (std.mem.startsWith(u8, line, "theme")) {
+            if (std.mem.eql(u8, keyword, "theme")) {
                 break :items completion.themes(p.allocator, themes) orelse return null;
             }
-            if (std.mem.startsWith(u8, line, "keybind") and
+            if (std.mem.eql(u8, keyword, "keybind") and
                 std.mem.containsAtLeast(u8, line[0..p.position.character], 2, "="))
             {
                 break :items completion.actions(p.allocator, actions) orelse return null;
             }
             for (color_options) |c| {
-                if (std.mem.startsWith(u8, line, c)) {
+                if (std.mem.eql(u8, keyword, c)) {
                     break :items completion.colors(p.allocator, colors) orelse return null;
                 }
             }
