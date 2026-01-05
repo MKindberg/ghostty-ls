@@ -46,13 +46,15 @@ pub fn themes(allocator: std.mem.Allocator, theme_list: parser.Themes) ?[]Comple
     return completions.items;
 }
 
-pub fn actions(allocator: std.mem.Allocator, action_list: parser.Actions) ?[]CompletionItem {
+pub fn actions(allocator: std.mem.Allocator, action_map: parser.Actions) ?[]CompletionItem {
     var completions = std.array_list.Managed(CompletionItem).init(allocator);
 
-    for (action_list.list.items) |a| {
+    var it = action_map.map.iterator();
+    while (it.next()) |a| {
         completions.append(.{
-            .label = a,
+            .label = a.key_ptr.*,
             .kind = .Value,
+            .documentation = a.value_ptr.*,
         }) catch return null;
     }
 

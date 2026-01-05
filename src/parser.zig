@@ -6,52 +6,73 @@ pub const Config = struct {
     config: std.ArrayList(ConfigItem),
     allocator: std.mem.Allocator,
 
-    pub const Value = struct {
+    pub const Item = struct {
         name: []const u8,
         range: lsp.types.Range,
     };
+    pub const Value = union(enum) {
+        keybind: Keybind,
+        other: Item,
+
+        pub const Keybind = struct {
+            keys: ?Item = null,
+            action: ?Item = null,
+            option: ?Item = null,
+        };
+    };
 
     pub const ConfigItem = struct {
-        key: Value,
-        value: Value,
+        key: Item,
+        value: ?Value = null,
 
+        fn getItem(line: []const u8, line_num: usize, start: usize, end: usize) Item {
+            const name = std.mem.trim(u8, line[start..end], " ");
+            const s = std.mem.indexOfPos(u8, line, start, name).?;
+            return .{
+                .name = name,
+                .range = .{
+                    .start = .{
+                        .line = line_num,
+                        .character = s,
+                    },
+                    .end = .{
+                        .line = line_num,
+                        .character = s + name.len,
+                    },
+                },
+            };
+        }
         pub fn parse(line: []const u8, line_num: usize) ?ConfigItem {
             const l = std.mem.trim(u8, line, " ");
             if (l.len == 0 or l[0] == '#') return null;
 
-            const split_idx = std.mem.indexOfScalar(u8, l, '=') orelse return null;
-            const key = std.mem.trim(u8, l[0..split_idx], " ");
-            const key_start = std.mem.indexOf(u8, l, key).?;
-            const value = std.mem.trim(u8, l[split_idx+1..], " ");
-            const value_start = std.mem.indexOfPos(u8, l, split_idx, value).?;
+            const split_idx = std.mem.indexOfScalar(u8, line, '=') orelse line.len;
+            const key = getItem(line, line_num, 0, split_idx);
+            if (std.mem.indexOfScalar(u8, line, '=') == null) return .{ .key = key };
+
+            const value = value: {
+                if (std.mem.eql(u8, key.name, "keybind")) {
+                    var keybind = Value.Keybind{};
+
+                    const split_idx2 = std.mem.indexOfScalarPos(u8, line, split_idx + 1, '=') orelse line.len;
+                    keybind.keys = getItem(line, line_num, split_idx + 1, split_idx2);
+                    if (std.mem.indexOfScalarPos(u8, line, split_idx + 1, '=') == null) break :value Value{ .keybind = keybind };
+
+                    const split_idx3 = std.mem.indexOfScalarPos(u8, line, split_idx2 + 1, ':') orelse line.len;
+                    keybind.action = getItem(line, line_num, split_idx2 + 1, split_idx3);
+                    if (std.mem.indexOfScalarPos(u8, line, split_idx2 + 1, ':') == null) break :value Value{ .keybind = keybind };
+
+                    keybind.option = getItem(line, line_num, split_idx3 + 1, line.len);
+                    break :value Value{ .keybind = keybind };
+                }
+
+                const value = getItem(line, line_num, split_idx + 1, line.len);
+                break :value Value{ .other = value };
+            };
 
             return .{
-                .key = .{
-                    .name = key,
-                    .range = .{
-                        .start = .{
-                            .line = line_num,
-                            .character = key_start,
-                        },
-                        .end = .{
-                            .line = line_num,
-                            .character = key_start + key.len,
-                        },
-                    },
-                },
-                .value = .{
-                    .name = value,
-                    .range = .{
-                        .start = .{
-                            .line = line_num,
-                            .character = value_start,
-                        },
-                        .end = .{
-                            .line = line_num,
-                            .character = value_start + value.len,
-                        },
-                    },
-                },
+                .key = key,
+                .value = value,
             };
         }
     };
@@ -93,7 +114,7 @@ pub const Colors = struct {
     pub fn init(allocator: std.mem.Allocator) !Self {
         const res = try std.process.Child.run(.{
             .allocator = allocator,
-            .argv = &[_][]const u8{ "ghostty", "+list-colors", "--plain"},
+            .argv = &[_][]const u8{ "ghostty", "+list-colors", "--plain" },
             .max_output_bytes = 50_000,
         });
 
@@ -119,29 +140,55 @@ pub const Colors = struct {
 };
 
 pub const Actions = struct {
-    list: std.ArrayList([]const u8),
+    map: std.StringHashMap([]const u8),
     allocator: std.mem.Allocator,
 
     const Self = @This();
     pub fn init(allocator: std.mem.Allocator) !Self {
         const res = try std.process.Child.run(.{
             .allocator = allocator,
-            .argv = &[_][]const u8{ "ghostty", "+list-actions" },
-            .max_output_bytes = 5000,
+            .argv = &[_][]const u8{ "ghostty", "+list-actions", "--docs" },
+            .max_output_bytes = 30000,
         });
-
-        var actions = std.ArrayList([]const u8).initCapacity(allocator, std.mem.count(u8, res.stdout, "\n") + 1) catch unreachable;
-
-        var lines = std.mem.splitScalar(u8, res.stdout, '\n');
-        while (lines.next()) |line| {
-            actions.appendAssumeCapacity(line);
+        defer {
+            allocator.free(res.stdout);
+            allocator.free(res.stderr);
         }
 
-        return Self{ .list = actions, .allocator = allocator };
+        var actions = std.StringHashMap([]const u8).init(allocator);
+        actions.ensureTotalCapacity(@intCast(std.mem.count(u8, res.stdout, ":\n "))) catch unreachable;
+
+        var doc_lines = std.ArrayList([]const u8).initCapacity(allocator, 128) catch unreachable;
+        var lines = std.mem.splitScalar(u8, std.mem.trim(u8, res.stdout, " \t\n"), '\n');
+        var action: []const u8 = undefined;
+        while (lines.next()) |line| {
+            if (line.len > 0 and line[0] != ' ') {
+                if (doc_lines.items.len > 0) {
+                    const doc = std.mem.join(allocator, "\n", doc_lines.items) catch unreachable;
+                    actions.putAssumeCapacity(action, doc);
+                }
+                doc_lines.clearRetainingCapacity();
+                action = allocator.dupe(u8, line[0 .. line.len - 1]) catch unreachable;
+                continue;
+            }
+            if (line.len > 2)
+                doc_lines.appendAssumeCapacity(line[2..])
+            else
+                doc_lines.appendAssumeCapacity(line);
+        }
+        const doc = std.mem.join(allocator, "\n", doc_lines.items) catch unreachable;
+        actions.putAssumeCapacity(action, doc);
+
+        return Self{ .map = actions, .allocator = allocator };
     }
 
     pub fn deinit(self: *Self) void {
-        self.list.deinit(self.allocator);
+        var it = self.map.iterator();
+        while (it.next()) |i| {
+            self.allocator.free(i.key_ptr.*);
+            self.allocator.free(i.value_ptr.*);
+        }
+        self.map.deinit();
     }
 };
 

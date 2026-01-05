@@ -87,6 +87,14 @@ fn handleChange(p: Lsp.ChangeDocumentParameters) Lsp.ChangeDocumentReturn {
             const message = std.fmt.allocPrint(p.allocator, "Unknown key \"{s}\"", .{c.key.name}) catch unreachable;
             diagnostics.append(p.allocator, .{ .message = message, .range = c.key.range, .severity = .Error }) catch unreachable;
         }
+        if (c.value != null and c.value.? == .keybind) {
+            if (c.value.?.keybind.action) |a| {
+                if (!actions.map.contains(a.name)) {
+                    const message = std.fmt.allocPrint(p.allocator, "Unknown action \"{s}\"", .{a.name}) catch unreachable;
+                    diagnostics.append(p.allocator, .{ .message = message, .range = a.range, .severity = .Error }) catch unreachable;
+                }
+            }
+        }
     }
     p.context.server.writeResponse(p.allocator, lsp.types.Notification.PublishDiagnostics{ .params = .{
         .uri = p.context.document.uri,
@@ -95,10 +103,18 @@ fn handleChange(p: Lsp.ChangeDocumentParameters) Lsp.ChangeDocumentReturn {
 }
 
 fn handleHover(p: Lsp.HoverParameters) ?[]const u8 {
-    const word = p.context.document.getWord(p.position, "\n =") orelse return null;
-    const opt = options.get(word) orelse return null;
-
-    return std.fmt.allocPrint(p.allocator, "# {s}\n\n{s}\n\nDefault: {s}", .{ opt.name, opt.comment, opt.default }) catch unreachable;
+    const line = p.context.document.getLine(p.position).?;
+    const word = p.context.document.getWord(p.position, "\n =:") orelse return null;
+    const equal = std.mem.indexOf(u8, line, "=") orelse line.len;
+    if (p.position.character < equal) if (options.get(word)) |opt| {
+        return std.fmt.allocPrint(p.allocator, "# {s}\n\n{s}\n\nDefault: {s}", .{ opt.name, opt.comment, opt.default }) catch unreachable;
+    };
+    const equal2 = std.mem.indexOfPos(u8, line, equal + 1, "=") orelse line.len;
+    const colon = std.mem.indexOfPos(u8, line, equal2, ":") orelse line.len;
+    if (equal2 < p.position.character and p.position.character < colon) if (actions.map.get(word)) |a| {
+        return std.fmt.allocPrint(p.allocator, "# {s}\n\n{s}", .{ word, a }) catch unreachable;
+    };
+    return null;
 }
 
 fn handleRangeFormat(p: Lsp.RangeFormattingParameters) ?[]const lsp.types.TextEdit {
@@ -232,23 +248,30 @@ fn handleColor(p: Lsp.ColorParameters) Lsp.ColorReturn {
     const config: parser.Config = p.context.state.?;
     var color_info = std.array_list.Managed(lsp.types.ColorInformation).init(p.allocator);
     for (config.config.items) |c| {
-        if (lsp.types.Color.fromHex(c.value.name)) |color| {
+        // Only run for options in color_options
+        var found = false;
+        for (color_options) |co| {
+            if (std.mem.eql(u8, co, c.key.name)) found = true;
+        }
+        if(!found) continue;
+
+        if(c.value == null) continue;
+        if (lsp.types.Color.fromHex(c.value.?.other.name)) |color| {
             color_info.append(
                 .{
                     .color = color,
-                    .range = c.value.range,
+                    .range = c.value.?.other.range,
                 },
             ) catch unreachable;
             continue;
         }
         for (color_options) |cc| {
             if (!std.mem.eql(u8, cc, c.key.name)) continue;
-            if (colors.map.get(c.value.name)) |color| {
-                std.debug.print("found '{s}'\n", .{c.value.name});
+            if (colors.map.get(c.value.?.other.name)) |color| {
                 color_info.append(
                     .{
                         .color = lsp.types.Color.fromHex(color) orelse continue,
-                        .range = c.value.range,
+                        .range = c.value.?.other.range,
                     },
                 ) catch unreachable;
             }
