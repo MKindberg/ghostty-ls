@@ -16,6 +16,20 @@ pub const Option = struct {
     default: []const u8,
 };
 
+const color_options = [_][]const u8{
+    "background",
+    "bold-color", // Can also be set to "bright"
+    "cursor-color",
+    "cursor-text",
+    "foreground",
+    "macos-icon-ghost-color",
+    "macos-icon-screen-color",
+    "palette", // Has the format N=<color>
+    "selection-background",
+    "selection-foreground",
+    "unfocused-split-fill",
+};
+
 var gpa = std.heap.GeneralPurposeAllocator(.{}){};
 const allocator = gpa.allocator();
 
@@ -208,19 +222,6 @@ fn formatText(alloc: std.mem.Allocator, text: []const u8) []lsp.types.TextEdit {
     }
     return edits.items;
 }
-
-const color_options = [_][]const u8{
-    "background",
-    "cursor-color",
-    "cursor-text",
-    "foreground",
-    "macos-icon-ghost-color",
-    "macos-icon-screen-color",
-    "palette",
-    "selection-background",
-    "selection-foreground",
-    "unfocused-split-fill",
-};
 
 fn handleCompletion(p: Lsp.CompletionParameters) ?lsp.types.CompletionList {
     const line = std.mem.trim(u8, p.context.document.getLine(p.position).?, " ");
