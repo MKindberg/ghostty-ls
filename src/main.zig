@@ -95,6 +95,18 @@ fn handleChange(p: Lsp.ChangeDocumentParameters) Lsp.ChangeDocumentReturn {
                 }
             }
         }
+        if (std.mem.eql(u8, c.key.name, "theme") and c.value != null) {
+            const val = c.value.?.other;
+            const theme = std.mem.trim(u8, val.name, "\"");
+            for (themes.list.items) |t| {
+                if (std.mem.eql(u8, t, theme)) {
+                    break;
+                }
+            } else {
+                const message = std.fmt.allocPrint(p.allocator, "Unknown theme \"{s}\"", .{theme}) catch unreachable;
+                diagnostics.append(p.allocator, .{ .message = message, .range = val.range, .severity = .Error }) catch unreachable;
+            }
+        }
     }
     p.context.server.writeResponse(p.allocator, lsp.types.Notification.PublishDiagnostics{ .params = .{
         .uri = p.context.document.uri,
@@ -249,13 +261,11 @@ fn handleColor(p: Lsp.ColorParameters) Lsp.ColorReturn {
     var color_info = std.array_list.Managed(lsp.types.ColorInformation).init(p.allocator);
     for (config.config.items) |c| {
         // Only run for options in color_options
-        var found = false;
         for (color_options) |co| {
-            if (std.mem.eql(u8, co, c.key.name)) found = true;
-        }
-        if(!found) continue;
+            if (std.mem.eql(u8, co, c.key.name)) break;
+        } else continue;
 
-        if(c.value == null) continue;
+        if (c.value == null) continue;
         if (lsp.types.Color.fromHex(c.value.?.other.name)) |color| {
             color_info.append(
                 .{
