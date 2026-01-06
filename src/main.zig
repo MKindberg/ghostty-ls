@@ -69,7 +69,8 @@ pub fn main() !u8 {
 
 fn setup(p: Lsp.SetupParameters) void {
     p.server.registerDocOpenCallback(handleOpen);
-    p.server.registerDocChangeCallback(handleChange);
+    if (p.initialize.capabilities.textDocument.?.publishDiagnostics != null)
+        p.server.registerDocChangeCallback(handleChange);
     if (p.initialize.capabilities.textDocument.?.hover != null)
         p.server.registerHoverCallback(handleHover);
     if (p.initialize.capabilities.textDocument.?.formatting != null)
