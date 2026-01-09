@@ -201,6 +201,7 @@ fn formatText(alloc: std.mem.Allocator, text: []const u8) []lsp.types.TextEdit {
         }
         if (std.mem.indexOf(u8, line, "=")) |idx| {
             if (idx == 0) continue;
+            // Add space before if none
             if (line[idx - 1] != ' ') {
                 edits.append(
                     .{
@@ -209,12 +210,43 @@ fn formatText(alloc: std.mem.Allocator, text: []const u8) []lsp.types.TextEdit {
                     },
                 ) catch unreachable;
             }
+            // Remove spaces before if too many
+            var i: usize = 1;
+            while (idx - i > 0 and line[idx - i] == ' ') : (i += 1) {}
+            i -= 1;
+            if (i > 1) {
+                edits.append(
+                    .{
+                        .range = .{
+                            .start = .{ .line = l, .character = idx - i },
+                            .end = .{ .line = l, .character = idx },
+                        },
+                        .newText = " ",
+                    },
+                ) catch unreachable;
+            }
 
             if (idx == line.len - 1) continue;
+            // Add space after if none
             if (line[idx + 1] != ' ') {
                 edits.append(
                     .{
                         .range = singleCharRange(l, idx + 1),
+                        .newText = " ",
+                    },
+                ) catch unreachable;
+            }
+
+            // Remove spaces after if too many
+            i = 1;
+            while (idx + i < line.len and line[idx + i] == ' ') : (i += 1) {}
+            if (i > 2) {
+                edits.append(
+                    .{
+                        .range = .{
+                            .start = .{ .line = l, .character = if (i == line.len) idx else idx + 1 }, // Remove all spaces if there's nothing after the equal sign
+                            .end = .{ .line = l, .character = idx + i },
+                        },
                         .newText = " ",
                     },
                 ) catch unreachable;
