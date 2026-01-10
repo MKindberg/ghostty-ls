@@ -3,9 +3,11 @@ A language server providing the following features
 
 |  |  |
 |--- | ---|
-| Hover | Show help text when hovering an option |
-| Completion | Autocomplete options, themes, fonts and colors |
-| Formatting | Add spaces around the first = after an option and after the # in comments |
+| Hover | Show help text when hovering an option or action |
+| Completion | Autocomplete options, themes, fonts, and colors |
+| Formatting | <ul><li> Surround the first = after an option with exactly one whitespace <li> Add space after the # in comments <li> Remove trailing whitespace |
+| Diagnostics | Show an error for invalid options, actions, and colors |
+| Color | Highlight colors if supported by editor |
 
 ## Installation
 ### Neovim
