@@ -151,7 +151,7 @@ fn handleRangeFormat(p: Lsp.RangeFormattingParameters) ?[]const lsp.types.TextEd
     const edits = formatText(p.allocator, t);
     for (edits) |*e| {
         const start = lsp.Document.posToIdxText(t, e.range.start).?;
-        const end = lsp.Document.posToIdxText(t, e.range.start).?;
+        const end = lsp.Document.posToIdxText(t, e.range.end).?;
         e.range.start = doc.idxToPos(offset + start).?;
         e.range.end = doc.idxToPos(offset + end).?;
     }
