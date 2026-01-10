@@ -182,6 +182,21 @@ fn formatText(alloc: std.mem.Allocator, text: []const u8) []lsp.types.TextEdit {
     var lines = std.mem.splitScalar(u8, text, '\n');
     var l: usize = 0;
     while (lines.next()) |line| : (l += 1) {
+        // Remove trailing whitespace
+        var i: usize = line.len;
+        while (i > 0 and line[i - 1] == ' ') : (i -= 1) {}
+        if (i < line.len) {
+            edits.append(
+                .{
+                    .range = .{
+                        .start = .{ .line = l, .character = i },
+                        .end = .{ .line = l, .character = line.len },
+                    },
+                    .newText = "",
+                },
+            ) catch unreachable;
+        }
+
         if (std.mem.indexOf(u8, line, "#")) |idx| {
             // Comments are only valid on their own line
             if (std.mem.trim(u8, line[0..idx], " ").len != 0) continue;
@@ -211,7 +226,7 @@ fn formatText(alloc: std.mem.Allocator, text: []const u8) []lsp.types.TextEdit {
                 ) catch unreachable;
             }
             // Remove spaces before if too many
-            var i: usize = 1;
+            i = 1;
             while (idx - i > 0 and line[idx - i] == ' ') : (i += 1) {}
             i -= 1;
             if (i > 1) {
