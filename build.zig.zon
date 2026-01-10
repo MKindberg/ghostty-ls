@@ -5,8 +5,8 @@
 
     .dependencies = .{
         .babel = .{
-            .url = "https://github.com/mkindberg/babel/archive/refs/tags/v0.12.1.tar.gz",
-            .hash = "babel-0.12.1-zYhD56GgAQB8sdmoiVrf7Ku5PJTDKGbolCdSO2MQrYpU",
+            .url = "https://github.com/mkindberg/babel/archive/refs/tags/v0.12.2.tar.gz",
+            .hash = "babel-0.12.2-zYhD51OfAQBc6-tAsJUEzdejW835MQr7Fdmyw2M6CY9D",
         },
     },
     .paths = .{
