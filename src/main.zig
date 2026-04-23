@@ -30,8 +30,7 @@ const color_options = [_][]const u8{
     "unfocused-split-fill",
 };
 
-var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-const allocator = gpa.allocator();
+var allocator: std.mem.Allocator = undefined;
 
 var actions: parser.Actions = undefined;
 var colors: parser.Colors = undefined;
@@ -39,16 +38,18 @@ var fonts: parser.Fonts = undefined;
 var options: parser.OptionsMap = undefined;
 var themes: parser.Themes = undefined;
 
-pub fn main() !u8 {
-    actions = try parser.Actions.init(allocator);
+pub fn main(init: std.process.Init) !u8 {
+    allocator = init.gpa;
+    const io = init.io;
+    actions = try parser.Actions.init(allocator, io);
     defer actions.deinit();
-    colors = try parser.Colors.init(allocator);
+    colors = try parser.Colors.init(allocator, io);
     defer colors.deinit();
-    fonts = try parser.Fonts.init(allocator);
+    fonts = try parser.Fonts.init(allocator, io);
     defer fonts.deinit();
-    options = try parser.OptionsMap.init(allocator);
+    options = try parser.OptionsMap.init(allocator, io);
     defer options.deinit();
-    themes = try parser.Themes.init(allocator);
+    themes = try parser.Themes.init(allocator, io);
     defer themes.deinit();
 
     const server_info = lsp.types.ServerInfo{
@@ -58,10 +59,10 @@ pub fn main() !u8 {
 
     var in_buffer: [4096]u8 = undefined;
     var out_buffer: [4096]u8 = undefined;
-    var stdin = std.fs.File.stdin().reader(&in_buffer);
-    var stdout = std.fs.File.stdout().writer(&out_buffer);
+    var stdin = std.Io.File.stdin().reader(io, &in_buffer);
+    var stdout = std.Io.File.stdout().writer(io, &out_buffer);
 
-    var server = Lsp.init(allocator, &stdin.interface, &stdout.interface, server_info);
+    var server = Lsp.init(allocator, io, &stdin.interface, &stdout.interface, server_info);
     defer server.deinit();
 
     return server.start(setup);

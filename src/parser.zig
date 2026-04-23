@@ -103,7 +103,7 @@ pub const Config = struct {
 pub const Colors = struct {
     map: std.StringHashMap([]const u8),
     allocator: std.mem.Allocator,
-    data: std.process.Child.RunResult,
+    data: std.process.RunResult,
 
     pub const Color = struct {
         name: []const u8,
@@ -111,11 +111,9 @@ pub const Colors = struct {
     };
 
     const Self = @This();
-    pub fn init(allocator: std.mem.Allocator) !Self {
-        const res = try std.process.Child.run(.{
-            .allocator = allocator,
+    pub fn init(allocator: std.mem.Allocator, io: std.Io) !Self {
+        const res = try std.process.run(allocator, io, .{
             .argv = &[_][]const u8{ "ghostty", "+list-colors", "--plain" },
-            .max_output_bytes = 50_000,
         });
 
         var colors = std.StringHashMap([]const u8).init(allocator);
@@ -144,11 +142,9 @@ pub const Actions = struct {
     allocator: std.mem.Allocator,
 
     const Self = @This();
-    pub fn init(allocator: std.mem.Allocator) !Self {
-        const res = try std.process.Child.run(.{
-            .allocator = allocator,
+    pub fn init(allocator: std.mem.Allocator, io: std.Io) !Self {
+        const res = try std.process.run(allocator, io, .{
             .argv = &[_][]const u8{ "ghostty", "+list-actions", "--docs" },
-            .max_output_bytes = 30000,
         });
         defer {
             allocator.free(res.stdout);
@@ -197,11 +193,9 @@ pub const Themes = struct {
     allocator: std.mem.Allocator,
 
     const Self = @This();
-    pub fn init(allocator: std.mem.Allocator) !Self {
-        const res = try std.process.Child.run(.{
-            .allocator = allocator,
+    pub fn init(allocator: std.mem.Allocator, io: std.Io) !Self {
+        const res = try std.process.run(allocator, io, .{
             .argv = &[_][]const u8{ "ghostty", "+list-themes", "--plain" },
-            .max_output_bytes = 30_000,
         });
 
         var themes = std.ArrayList([]const u8).initCapacity(allocator, std.mem.count(u8, res.stdout, "\n") + 1) catch unreachable;
@@ -228,11 +222,9 @@ pub const Fonts = struct {
     allocator: std.mem.Allocator,
 
     const Self = @This();
-    pub fn init(allocator: std.mem.Allocator) !Self {
-        const res = try std.process.Child.run(.{
-            .allocator = allocator,
+    pub fn init(allocator: std.mem.Allocator, io: std.Io) !Self {
+        const res = try std.process.run(allocator, io, .{
             .argv = &[_][]const u8{ "ghostty", "+list-fonts" },
-            .max_output_bytes = 50_000,
         });
 
         var fonts = std.ArrayList([]const u8).initCapacity(allocator, std.mem.count(u8, res.stdout, "\n") + 1) catch unreachable;
@@ -265,11 +257,9 @@ pub const OptionsMap = struct {
     };
 
     const Self = @This();
-    pub fn init(allocator: std.mem.Allocator) !Self {
-        const res = try std.process.Child.run(.{
-            .allocator = allocator,
+    pub fn init(allocator: std.mem.Allocator, io: std.Io) !Self {
+        const res = try std.process.run(allocator, io, .{
             .argv = &[_][]const u8{ "ghostty", "+show-config", "--default", "--docs" },
-            .max_output_bytes = 500_000,
         });
         defer allocator.free(res.stdout);
         defer allocator.free(res.stderr);

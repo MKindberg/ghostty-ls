@@ -15,7 +15,7 @@ jobs:
       - uses: actions/setup-node@v4
       - uses: goto-bus-stop/setup-zig@v2
         with:
-          version: 0.15.2
+          version: 0.16.0
       - name: Compile
         shell: bash
         run: |
